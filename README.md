@@ -83,4 +83,4 @@ Tests use SQLite in-memory — no PostgreSQL needed.
 - [ ] Week 3: Redis queue + background workers
 - [ ] Week 4: Claude API integration
 - [ ] Week 5: React dashboard
-- [ ] Week 6: Docker + CI/CD deployment
+- [ ] Week 6: Docker +CI/CD deployment
