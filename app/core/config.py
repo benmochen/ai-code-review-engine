@@ -5,7 +5,7 @@ from functools import lru_cache
 class Settings(BaseSettings):
     app_name: str = "CodeReviewBot"
     debug: bool = True
-    database_url: str = "postgresql://postgres:postgres@localhost:5432/code_review_bot"
+    database_url: str = "postgresql://localhost/reviewbot"
 
     # These will be used in later weeks
     github_client_id: str = ""
@@ -13,6 +13,7 @@ class Settings(BaseSettings):
     github_webhook_secret: str = ""
     redis_url: str = "redis://localhost:6379/0"
     anthropic_api_key: str = ""
+    session_secret: str = "dev-secret-change-in-production"
 
     model_config = {"env_file": ".env"}
 
