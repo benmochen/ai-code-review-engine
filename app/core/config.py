@@ -5,6 +5,7 @@ from functools import lru_cache
 class Settings(BaseSettings):
     app_name: str = "CodeReviewBot"
     debug: bool = True
+    sql_echo: bool = False
     database_url: str = "postgresql://localhost/reviewbot"
 
     # These will be used in later weeks
