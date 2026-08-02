@@ -21,3 +21,6 @@ pytest-asyncio==0.24.0
 redis==5.0.8
 rq==1.16.2
 fakeredis==2.23.5
+
+# Week 4: Claude API
+anthropic==0.120.2
