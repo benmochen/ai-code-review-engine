@@ -1,47 +1,15 @@
 """
 Week 1 tests — run with: pytest tests/ -v
 
-These tests use SQLite in-memory (it's actually a file on disk)
-so you don't need PostgreSQL running.
+These tests use SQLite in-memory so you don't need PostgreSQL running.
+The `client` fixture comes from conftest.py.
 """
-import pytest
-from fastapi.testclient import TestClient
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
-
-from app.core.database import Base, get_db
-from app.main import app
-
-# Use SQLite for tests (no Postgres needed)
-TEST_DB_URL = "sqlite:///./test.db"
-engine = create_engine(TEST_DB_URL, connect_args={"check_same_thread": False})
-TestSession = sessionmaker(autocommit=False, autoflush=False, bind=engine)
-
-
-def override_get_db():
-    db = TestSession()
-    try:
-        yield db
-    finally:
-        db.close()
-
-
-app.dependency_overrides[get_db] = override_get_db
-client = TestClient(app)
-
-
-@pytest.fixture(autouse=True)
-def setup_db():
-    """Create tables before each test, drop after."""
-    Base.metadata.create_all(bind=engine)
-    yield
-    Base.metadata.drop_all(bind=engine)
 
 
 # ──────────────────────────────────────────────
 # Health
 # ──────────────────────────────────────────────
-def test_health():
+def test_health(client):
     r = client.get("/health")
     assert r.status_code == 200
     assert r.json()["status"] == "ok"
@@ -50,7 +18,7 @@ def test_health():
 # ──────────────────────────────────────────────
 # Users
 # ──────────────────────────────────────────────
-def test_create_user():
+def test_create_user(client):
     r = client.post("/api/users/", json={
         "github_id": 12345,
         "username": "testuser",
@@ -63,13 +31,13 @@ def test_create_user():
     assert "id" in data
 
 
-def test_create_duplicate_user():
+def test_create_duplicate_user(client):
     client.post("/api/users/", json={"github_id": 1, "username": "dup"})
     r = client.post("/api/users/", json={"github_id": 1, "username": "dup2"})
     assert r.status_code == 409
 
 
-def test_list_users():
+def test_list_users(client):
     client.post("/api/users/", json={"github_id": 1, "username": "a"})
     client.post("/api/users/", json={"github_id": 2, "username": "b"})
     r = client.get("/api/users/")
@@ -77,7 +45,7 @@ def test_list_users():
     assert len(r.json()) == 2
 
 
-def test_get_user_not_found():
+def test_get_user_not_found(client):
     r = client.get("/api/users/nonexistent")
     assert r.status_code == 404
 
@@ -85,7 +53,7 @@ def test_get_user_not_found():
 # ──────────────────────────────────────────────
 # Repositories
 # ──────────────────────────────────────────────
-def test_create_repo():
+def test_create_repo(client):
     user = client.post("/api/users/", json={"github_id": 1, "username": "ben"}).json()
     r = client.post("/api/repos/", json={
         "github_id": 100,
@@ -96,7 +64,7 @@ def test_create_repo():
     assert r.json()["full_name"] == "ben/my-project"
 
 
-def test_create_repo_invalid_owner():
+def test_create_repo_invalid_owner(client):
     r = client.post("/api/repos/", json={
         "github_id": 100,
         "full_name": "nobody/repo",
@@ -108,7 +76,7 @@ def test_create_repo_invalid_owner():
 # ──────────────────────────────────────────────
 # Reviews & Comments
 # ──────────────────────────────────────────────
-def test_full_review_flow():
+def test_full_review_flow(client):
     """End-to-end: create user → repo → review → comment → read back."""
     # Setup
     user = client.post("/api/users/", json={"github_id": 1, "username": "ben"}).json()
