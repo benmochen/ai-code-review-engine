@@ -14,6 +14,7 @@ class Settings(BaseSettings):
     github_webhook_secret: str = ""
     redis_url: str = "redis://localhost:6379/0"
     anthropic_api_key: str = ""
+    claude_model: str = "claude-sonnet-5"
     session_secret: str = "dev-secret-change-in-production"
 
     model_config = {"env_file": ".env"}
