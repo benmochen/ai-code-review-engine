@@ -55,3 +55,13 @@ class GitHubClient:
             )
             resp.raise_for_status()
             return resp.text
+
+    async def post_issue_comment(
+        self, repo_full_name: str, issue_number: int, body: str
+    ) -> dict:
+        """Post a comment on a PR. PRs are issues as far as this endpoint cares."""
+        url = f"{GITHUB_API}/repos/{repo_full_name}/issues/{issue_number}/comments"
+        async with httpx.AsyncClient() as client:
+            resp = await client.post(url, headers=self._headers(), json={"body": body})
+            resp.raise_for_status()
+            return resp.json()
