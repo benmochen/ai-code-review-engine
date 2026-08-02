@@ -6,6 +6,9 @@ from app.core.config import get_settings
 from app.core.security import verify_webhook_signature
 from app.models.models import Repository, Review, ReviewStatus
 
+from app.core.queue import get_queue
+from app.workers.jobs import process_review
+
 router = APIRouter(prefix="/webhooks", tags=["webhooks"])
 settings = get_settings()
 
@@ -67,4 +70,19 @@ async def github_webhook(
     db.add(review)
     db.commit()
     db.refresh(review)
-    return review
+    # Enqueue the slow work (fetch diff + analyze) to run off the request path.
+    # The webhook returns immediately; a worker picks this up.
+    try:
+        queue = get_queue()
+        job = queue.enqueue(process_review, review.id)
+        job_id = job.id
+    except Exception:
+        # If Redis is down, don't lose the review — leave it PENDING for retry.
+        job_id = None
+
+    return {
+        "message": "Review created",
+        "review_id": review.id,
+        "pr_number": review.pr_number,
+        "job_id": job_id,
+    }
