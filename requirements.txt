@@ -24,3 +24,5 @@ fakeredis==2.23.5
 
 # Week 4: Claude API
 anthropic==0.120.2
+
+itsdangerous==2.2.0
