@@ -85,38 +85,6 @@ def test_process_review_success(client, monkeypatch):
         "app.workers.jobs.GitHubClient.get_pr_diff", fake_get_pr_diff
     )
 
-    result = jobs_module.process_review(review_id)
-
-    assert result["status"] == "completed"
-    assert result["diff_bytes"] > 0
-
-    db = SessionLocal()
-    try:
-        review = db.query(Review).filter(Review.id == review_id).first()
-        assert review.status == ReviewStatus.COMPLETED
-        assert review.completed_at is not None
-        assert "diff --git" in review.diff_text
-    finally:
-        db.close()
-
-
-def test_process_review_missing(client):
-    """Job handles a nonexistent review id gracefully."""
-    result = jobs_module.process_review("does-not-exist")
-    assert result["status"] == "error"
-
-
-def test_process_review_success(client, monkeypatch):
-    """Job fetches diff (mocked), stores it, marks COMPLETED."""
-    review_id = _seed_review()
-
-    async def fake_get_pr_diff(self, repo_full_name, pr_number):
-        return "diff --git a/x.py b/x.py\n+print('hi')\n"
-
-    monkeypatch.setattr(
-        "app.workers.jobs.GitHubClient.get_pr_diff", fake_get_pr_diff
-    )
-
     # Week 4 added Claude + comment posting to the job; mock both so this
     # Week 3 test stays focused on the diff-fetch + status-transition behavior.
     monkeypatch.setattr(
@@ -145,6 +113,32 @@ def test_process_review_success(client, monkeypatch):
         db.close()
 
 
+def test_process_review_missing(client):
+    """Job handles a nonexistent review id gracefully."""
+    result = jobs_module.process_review("does-not-exist")
+    assert result["status"] == "error"
+
+
+def test_process_review_diff_failure(client, monkeypatch):
+    """If the diff fetch throws, the review is marked FAILED, not left hanging."""
+    review_id = _seed_review()
+
+    async def boom(self, repo_full_name, pr_number):
+        raise RuntimeError("GitHub 404")
+
+    monkeypatch.setattr("app.workers.jobs.GitHubClient.get_pr_diff", boom)
+
+    result = jobs_module.process_review(review_id)
+    assert result["status"] == "failed"
+
+    db = SessionLocal()
+    try:
+        review = db.query(Review).filter(Review.id == review_id).first()
+        assert review.status == ReviewStatus.FAILED
+    finally:
+        db.close()
+
+
 # ──────────────────────────────────────────────
 # End-to-end: webhook enqueues, worker drains, job completes
 # ──────────────────────────────────────────────
@@ -159,6 +153,19 @@ def test_webhook_enqueues_and_worker_processes(client, fake_redis, monkeypatch):
         return "diff --git a/y.py b/y.py\n+x = 1\n"
     monkeypatch.setattr(
         "app.workers.jobs.GitHubClient.get_pr_diff", fake_get_pr_diff
+    )
+
+    # Week 4 added Claude + comment posting to the job; mock both so this
+    # test never makes a real API call (and doesn't need an API key in CI).
+    monkeypatch.setattr(
+        "app.workers.jobs.review_diff", lambda diff_text, client=None: []
+    )
+
+    async def fake_post(self, repo_full_name, pr_number, body):
+        return {"id": 1}
+
+    monkeypatch.setattr(
+        "app.workers.jobs.GitHubClient.post_issue_comment", fake_post
     )
 
     user = client.post("/api/users/", json={"github_id": 1, "username": "ben"}).json()
