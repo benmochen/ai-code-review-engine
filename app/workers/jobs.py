@@ -24,10 +24,10 @@ from app.models.models import (
 )
 
 _SEVERITY_LABEL = {
-    "critical": "🔴 Critical",
-    "error": "🟠 Error",
-    "warning": "🟡 Warning",
-    "info": "🔵 Info",
+    "critical": "Critical",
+    "error": "Error",
+    "warning": "Warning",
+    "info": "Info",
 }
 
 
@@ -35,12 +35,12 @@ def _format_summary(findings: list[dict], pr_number: int) -> str:
     """Render the findings into a Markdown summary comment for the PR."""
     if not findings:
         return (
-            "## 🤖 Automated Code Review\n\n"
-            "No issues found. Nice work! ✅"
+            "## Automated Code Review\n\n"
+            "No issues found. Nice work!"
         )
 
     lines = [
-        "## 🤖 Automated Code Review",
+        "##  Automated Code Review",
         "",
         f"Found {len(findings)} item(s) worth a look:",
         "",
