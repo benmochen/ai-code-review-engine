@@ -26,10 +26,10 @@ async def github_webhook(
     raw_body = await request.body() # bytes
 
     # 2. verify signature (given)
-    if settings.github_webhook_secret:
-        if not verify_webhook_signature(raw_body, x_hub_signature_256, settings.github_webhook_secret):
-            raise HTTPException(status_code=401, detail="Invalid webhook signature")
-
+    if not verify_webhook_signature(
+        raw_body, x_hub_signature_256, settings.github_webhook_secret
+    ):
+        raise HTTPException(status_code=401, detail="Invalid webhook signature")
     # 3. parse json (given)
     payload = await request.json() 
 

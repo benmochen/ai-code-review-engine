@@ -9,6 +9,10 @@ import pytest
 import fakeredis
 from rq import Queue, SimpleWorker
 
+import hashlib
+import hmac
+import json
+
 from app.core.database import SessionLocal
 from app.models.models import User, Repository, Review, ReviewStatus
 import app.core.queue as queue_module
@@ -145,7 +149,6 @@ def test_process_review_diff_failure(client, monkeypatch):
 def test_webhook_enqueues_and_worker_processes(client, fake_redis, monkeypatch):
     from app.core.config import get_settings
     settings = get_settings()
-    settings.github_webhook_secret = ""  # disable sig check
 
     monkeypatch.setattr(queue_module, "get_redis", lambda: fake_redis)
 
@@ -178,10 +181,21 @@ def test_webhook_enqueues_and_worker_processes(client, fake_redis, monkeypatch):
         "pull_request": {"number": 5, "title": "Add feature", "html_url": "http://x/5"},
         "repository": {"id": 42, "full_name": "ben/demo"},
     }
+
+    # Sign the exact bytes we send, the way GitHub does.
+    raw = json.dumps(payload).encode()
+    digest = hmac.new(
+        settings.github_webhook_secret.encode(), raw, hashlib.sha256
+    ).hexdigest()
+
     r = client.post(
         "/api/webhooks/github",
-        headers={"X-GitHub-Event": "pull_request"},
-        json=payload,
+        headers={
+            "X-GitHub-Event": "pull_request",
+            "X-Hub-Signature-256": f"sha256={digest}",
+            "Content-Type": "application/json",
+        },
+        content=raw,
     )
     assert r.status_code == 200
     body = r.json()

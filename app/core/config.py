@@ -1,3 +1,4 @@
+from pydantic import Field
 from pydantic_settings import BaseSettings
 from functools import lru_cache
 
@@ -11,11 +12,11 @@ class Settings(BaseSettings):
     # These will be used in later weeks
     github_client_id: str = ""
     github_client_secret: str = ""
-    github_webhook_secret: str = ""
+    github_webhook_secret: str = Field(min_length=1)
     redis_url: str = "redis://localhost:6379/0"
     anthropic_api_key: str = ""
     claude_model: str = "claude-sonnet-5"
-    session_secret: str = "dev-secret-change-in-production"
+    session_secret: str = Field(min_length=1)
 
     model_config = {"env_file": ".env"}
 
