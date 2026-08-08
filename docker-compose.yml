@@ -35,10 +35,10 @@ services:
     environment:
       DATABASE_URL: postgresql://postgres:postgres@db:5432/reviewbot
       REDIS_URL: redis://redis:6379/0
-      SESSION_SECRET: ${SESSION_SECRET:-dev-only-insecure-secret-change-me}
+      SESSION_SECRET: ${SESSION_SECRET:?set SESSION_SECRET in .env or the environment}
       GITHUB_CLIENT_ID: ${GITHUB_CLIENT_ID:-}
       GITHUB_CLIENT_SECRET: ${GITHUB_CLIENT_SECRET:-}
-      GITHUB_WEBHOOK_SECRET: ${GITHUB_WEBHOOK_SECRET:-}
+      GITHUB_WEBHOOK_SECRET: ${GITHUB_WEBHOOK_SECRET:?set GITHUB_WEBHOOK_SECRET in .env or the environment}
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
       CLAUDE_MODEL: ${CLAUDE_MODEL:-claude-sonnet-5}
     ports:
