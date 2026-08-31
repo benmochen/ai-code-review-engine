@@ -60,6 +60,11 @@ class Repository(Base):
     full_name: Mapped[str] = mapped_column(String(255), nullable=False)  # e.g. "ben/my-repo"
     owner_id: Mapped[str] = mapped_column(ForeignKey("users.id"), nullable=False)
     webhook_active: Mapped[bool] = mapped_column(Boolean, default=False)
+    # Per-repository webhook secret, so one leaked secret can't forge events
+    # for every repo on the service. Set when the hook is created.
+    webhook_secret: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    # GitHub's id for the hook, needed to delete it when the repo is disabled.
+    webhook_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
     # Relationships

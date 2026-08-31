@@ -17,6 +17,11 @@ class Settings(BaseSettings):
     anthropic_api_key: str = ""
     claude_model: str = "claude-sonnet-5"
     session_secret: str = Field(min_length=1)
+    # Public origin GitHub delivers webhooks to (an ngrok URL in dev). Without
+    # it a repo cannot be enabled, since GitHub needs a reachable callback.
+    public_base_url: str = ""
+    # Where to send the browser after a successful OAuth login.
+    frontend_url: str = "/"
 
     model_config = {"env_file": ".env"}
 
