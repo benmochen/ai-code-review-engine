@@ -65,3 +65,48 @@ class GitHubClient:
             resp = await client.post(url, headers=self._headers(), json={"body": body})
             resp.raise_for_status()
             return resp.json()
+
+    async def list_repositories(self, per_page: int = 100) -> list[dict]:
+        """
+        List repositories the token can administer.
+
+        Only repos where the user has admin rights can receive a webhook, so
+        the caller sees exactly the set it can actually enable.
+        """
+        async with httpx.AsyncClient() as client:
+            resp = await client.get(
+                f"{GITHUB_API}/user/repos",
+                headers=self._headers(),
+                params={"per_page": per_page, "sort": "updated", "affiliation": "owner"},
+            )
+            resp.raise_for_status()
+            return [r for r in resp.json() if r.get("permissions", {}).get("admin")]
+
+    async def create_webhook(
+        self, repo_full_name: str, callback_url: str, secret: str
+    ) -> dict:
+        """Register a pull_request webhook on a repository."""
+        url = f"{GITHUB_API}/repos/{repo_full_name}/hooks"
+        payload = {
+            "name": "web",
+            "active": True,
+            "events": ["pull_request"],
+            "config": {
+                "url": callback_url,
+                "content_type": "json",
+                "secret": secret,
+                "insecure_ssl": "0",
+            },
+        }
+        async with httpx.AsyncClient() as client:
+            resp = await client.post(url, headers=self._headers(), json=payload)
+            resp.raise_for_status()
+            return resp.json()
+
+    async def delete_webhook(self, repo_full_name: str, hook_id: int) -> None:
+        """Remove a webhook. A hook already gone on GitHub's side is not an error."""
+        url = f"{GITHUB_API}/repos/{repo_full_name}/hooks/{hook_id}"
+        async with httpx.AsyncClient() as client:
+            resp = await client.delete(url, headers=self._headers())
+            if resp.status_code != 404:
+                resp.raise_for_status()
