@@ -10,7 +10,11 @@ export default defineConfig({
     proxy: {
       "/api": {
         target: "http://localhost:8000",
-        changeOrigin: true,
+        // Keep the original Host header so the backend builds its OAuth
+        // callback as localhost:5173 (this origin) rather than :8000. That
+        // keeps the whole login round-trip on one origin, so the session
+        // cookie is set where the app can actually read it.
+        changeOrigin: false,
       },
     },
   },

@@ -34,6 +34,10 @@ export default function Dashboard() {
   const [detail, setDetail] = useState({});     // review_id -> full review with comments
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [showConnect, setShowConnect] = useState(false);
+  const [available, setAvailable] = useState(null);   // null = not fetched yet
+  const [connectErr, setConnectErr] = useState(null);
+  const [busyRepo, setBusyRepo] = useState(null);     // github_id being toggled
 
   // Auth check on mount
   useEffect(() => {
@@ -67,6 +71,38 @@ export default function Dashboard() {
       } catch { /* leave undefined; body shows a fallback */ }
     }
   };
+
+  const openConnect = useCallback(async () => {
+    setShowConnect((v) => !v);
+    if (available !== null) return;          // already fetched once
+    setConnectErr(null);
+    try {
+      setAvailable(await api.availableRepos());
+    } catch (e) {
+      setAvailable([]);
+      setConnectErr(e.message);
+    }
+  }, [available]);
+
+  const toggleRepo = useCallback(async (entry) => {
+    setBusyRepo(entry.github_id);
+    setConnectErr(null);
+    try {
+      if (entry.enabled) {
+        const mine = repos.find((r) => r.github_id === entry.github_id);
+        if (mine) await api.disableRepo(mine.id);
+      } else {
+        await api.enableRepo(entry.github_id, entry.full_name);
+      }
+      const [fresh, mine] = await Promise.all([api.availableRepos(), api.repos()]);
+      setAvailable(fresh);
+      setRepos(mine);
+    } catch (e) {
+      setConnectErr(e.message);
+    } finally {
+      setBusyRepo(null);
+    }
+  }, [repos]);
 
   const filtered = useMemo(
     () => repoFilter === "all" ? reviews : reviews.filter(r => r.repository_id === repoFilter),
@@ -116,7 +152,19 @@ export default function Dashboard() {
               {!r.webhook_active && <span style={S.off}>off</span>}
             </Chip>
           ))}
+          <button onClick={openConnect} style={{...S.chip, ...S.connectChip}}>
+            {showConnect ? "Close" : "+ Connect a repo"}
+          </button>
         </div>
+
+        {showConnect && (
+          <ConnectPanel
+            available={available}
+            error={connectErr}
+            busyRepo={busyRepo}
+            onToggle={toggleRepo}
+          />
+        )}
 
         {loading && <div style={S.empty}><Spinner /> Loading reviews…</div>}
         {error && <div style={S.errorBox}>{error} <button onClick={load} style={S.retry}>Retry</button></div>}
@@ -188,6 +236,39 @@ export default function Dashboard() {
         )}
       </div>
     </div>
+  );
+}
+
+function ConnectPanel({ available, error, busyRepo, onToggle }) {
+  return (
+    <section style={S.connectPanel}>
+      <div style={S.connectHead}>
+        Your GitHub repositories
+        <span style={S.connectHint}>
+          Enabling adds a webhook so new pull requests get reviewed.
+        </span>
+      </div>
+      {error && <div style={S.connectErr}>{error}</div>}
+      {available === null && <div style={S.noFindings}><Spinner /> Loading from GitHub…</div>}
+      {available !== null && available.length === 0 && !error && (
+        <div style={S.noFindings}>No repositories you can administer.</div>
+      )}
+      {(available || []).map((r) => (
+        <div key={r.github_id} style={S.connectRow}>
+          <div style={{minWidth: 0}}>
+            <span style={S.connectName}>{r.full_name}</span>
+            {r.private && <span style={S.privateTag}>private</span>}
+          </div>
+          <button
+            onClick={() => onToggle(r)}
+            disabled={busyRepo === r.github_id}
+            style={{...S.connectBtn, ...(r.enabled ? S.connectBtnOn : {})}}
+          >
+            {busyRepo === r.github_id ? "…" : r.enabled ? "Disconnect" : "Connect"}
+          </button>
+        </div>
+      ))}
+    </section>
   );
 }
 
@@ -310,6 +391,17 @@ const S = {
   empty: { textAlign: "center", padding: "48px 20px", color: "#8a8578", fontSize: 14, background: "#fff", border: "1px dashed #ddd6c6", borderRadius: 12, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", gap:8 },
   errorBox: { padding: "16px 18px", background: "#fbeaea", border: "1px solid #f0d4d4", borderRadius: 12, color: "#7c1d1d", fontSize: 14, display:"flex", alignItems:"center", gap:12 },
   retry: { border:"1px solid #d9a", background:"#fff", color:"#7c1d1d", padding:"4px 12px", borderRadius:8, fontSize:13 },
+
+  connectChip: { borderStyle: "dashed", color: "#7c776b" },
+  connectPanel: { background: "#fff", border: "1px solid #e7e2d6", borderRadius: 12, padding: "14px 16px", marginBottom: 16 },
+  connectHead: { fontSize: 13, fontWeight: 600, marginBottom: 10, display: "flex", flexDirection: "column", gap: 3 },
+  connectHint: { fontWeight: 400, fontSize: 12, color: "#8a8578" },
+  connectErr: { background: "#fbeaea", border: "1px solid #f0d4d4", color: "#7c1d1d", fontSize: 13, borderRadius: 8, padding: "8px 11px", marginBottom: 10 },
+  connectRow: { display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, padding: "9px 0", borderTop: "1px solid #f0ece2" },
+  connectName: { fontFamily: mono, fontSize: 13 },
+  privateTag: { fontSize: 10, textTransform: "uppercase", letterSpacing: "0.05em", color: "#8a8578", border: "1px solid #e2ddd0", borderRadius: 4, padding: "1px 5px", marginLeft: 8 },
+  connectBtn: { border: "1px solid #2b2822", background: "#2b2822", color: "#f7f5ef", padding: "5px 13px", borderRadius: 8, fontSize: 12.5, fontWeight: 600, flexShrink: 0 },
+  connectBtnOn: { background: "#fff", color: "#7c1d1d", borderColor: "#e0c4c4" },
 
   loginBtn: { display:"inline-block", background:"#2b2822", color:"#f7f5ef", padding:"11px 22px", borderRadius:10, fontSize:14, fontWeight:600 },
   spinner: { width:13, height:13, border:"2px solid #d8d1c0", borderTopColor:"#c0392b", borderRadius:"50%", display:"inline-block", animation:"spin .7s linear infinite" },
