@@ -5,6 +5,7 @@ from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.core.config import get_settings
+from app.core.deps import get_current_user
 from app.core.github_client import GitHubClient
 from app.models.models import User
 
@@ -77,17 +78,18 @@ async def oauth_callback(
     # Log them in
     request.session["user_id"] = user.id
 
-    return {"message": "Login successful", "user": {"id": user.id, "username": user.username}}
+    # Send the browser back to the app rather than rendering JSON at the
+    # callback URL, which is where the user's window currently sits.
+    return RedirectResponse(settings.frontend_url, status_code=303)
 
 @router.get("/me")
-def get_current_user(request: Request, db: Session = Depends(get_db)):
-    user_id = request.session.get("user_id")
-    if not user_id:
-        raise HTTPException(status_code=401, detail="User not logged in")
-    user = db.query(User).filter(User.id == user_id).first()
-    if not user:
-        raise HTTPException(status_code=401, detail="User not found")
-    return {"id": user.id, "username": user.username, "email": user.email, "avatar_url": user.avatar_url}
+def read_current_user(user: User = Depends(get_current_user)):
+    return {
+        "id": user.id,
+        "username": user.username,
+        "email": user.email,
+        "avatar_url": user.avatar_url,
+    }
 
 @router.post("/logout")
 def logout(request: Request):

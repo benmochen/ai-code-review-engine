@@ -28,9 +28,9 @@ class UserResponse(BaseModel):
 # Repository schemas
 # ──────────────────────────────────────────────
 class RepositoryCreate(BaseModel):
+    """Enable a repository. The owner comes from the session, never the body."""
     github_id: int
     full_name: str
-    owner_id: str
 
 
 class RepositoryResponse(BaseModel):
@@ -42,6 +42,15 @@ class RepositoryResponse(BaseModel):
     owner_id: str
     webhook_active: bool
     created_at: datetime
+    # webhook_secret is deliberately absent — it never leaves the server.
+
+
+class AvailableRepository(BaseModel):
+    """A GitHub repo the user could enable, plus whether it already is."""
+    github_id: int
+    full_name: str
+    private: bool
+    enabled: bool
 
 
 # ──────────────────────────────────────────────

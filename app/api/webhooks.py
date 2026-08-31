@@ -1,3 +1,5 @@
+import json
+
 from fastapi import APIRouter, Depends, HTTPException, Request, Header
 from sqlalchemy.orm import Session
 
@@ -22,16 +24,32 @@ async def github_webhook(
     x_hub_signature_256: str = Header(None),
     db: Session = Depends(get_db),
 ):
-    # 1. raw body for signature (given)
+    # 1. raw body for signature
     raw_body = await request.body() # bytes
 
-    # 2. verify signature (given)
-    if not verify_webhook_signature(
-        raw_body, x_hub_signature_256, settings.github_webhook_secret
-    ):
+    # 2. Parse before verifying, purely to learn which repository this claims
+    #    to be from — each repo has its own secret, so we cannot pick the right
+    #    key without looking. Nothing here is trusted or acted on until the
+    #    signature check below passes.
+    try:
+        payload = json.loads(raw_body)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Malformed JSON payload")
+    if not isinstance(payload, dict):
+        raise HTTPException(status_code=400, detail="Malformed JSON payload")
+
+    claimed_github_id = (payload.get("repository") or {}).get("id")
+    repo = (
+        db.query(Repository).filter(Repository.github_id == claimed_github_id).first()
+        if claimed_github_id is not None
+        else None
+    )
+
+    # 3. Verify against that repo's secret. Hooks created before per-repo
+    #    secrets existed fall back to the shared one.
+    secret = (repo.webhook_secret if repo else None) or settings.github_webhook_secret
+    if not verify_webhook_signature(raw_body, x_hub_signature_256, secret):
         raise HTTPException(status_code=401, detail="Invalid webhook signature")
-    # 3. parse json (given)
-    payload = await request.json() 
 
     # --- YOUR PART FROM HERE ---
     # 4. if event is "ping", return a pong message
@@ -48,18 +66,14 @@ async def github_webhook(
         return {"message": f"Ignored action: {action}"}
 
 
-    # 7. extract pr and repo data from payload:
+    # 7. extract pr data from the (now verified) payload
     pr = payload["pull_request"]
-    repo_data = payload["repository"]
 
-    # 8. look up the Repository in our db by its github id
-    #    (repo_data["id"] is GitHub's id; match it against Repository.github_id)
-    #    if not found, return a "not registered" message
-    repo = db.query(Repository).filter(Repository.github_id == repo_data["id"]).first()
+    # 8. the repository was resolved during signature verification above
     if not repo:
         return {"message": "Repository not registered"}
-    
-    # 9. create a Review row and return it 
+
+    # 9. create a Review row and return it
     review = Review(
     repository_id=repo.id,
     pr_number=pr["number"],

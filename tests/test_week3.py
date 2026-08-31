@@ -17,6 +17,7 @@ from app.core.database import SessionLocal
 from app.models.models import User, Repository, Review, ReviewStatus
 import app.core.queue as queue_module
 import app.workers.jobs as jobs_module
+from tests.conftest import make_repo, make_user
 
 
 @pytest.fixture
@@ -146,10 +147,7 @@ def test_process_review_diff_failure(client, monkeypatch):
 # ──────────────────────────────────────────────
 # End-to-end: webhook enqueues, worker drains, job completes
 # ──────────────────────────────────────────────
-def test_webhook_enqueues_and_worker_processes(client, fake_redis, monkeypatch):
-    from app.core.config import get_settings
-    settings = get_settings()
-
+def test_webhook_enqueues_and_worker_processes(auth_client, fake_redis, monkeypatch):
     monkeypatch.setattr(queue_module, "get_redis", lambda: fake_redis)
 
     async def fake_get_pr_diff(self, repo_full_name, pr_number):
@@ -171,10 +169,9 @@ def test_webhook_enqueues_and_worker_processes(client, fake_redis, monkeypatch):
         "app.workers.jobs.GitHubClient.post_issue_comment", fake_post
     )
 
-    user = client.post("/api/users/", json={"github_id": 1, "username": "ben"}).json()
-    client.post("/api/repos/", json={
-        "github_id": 42, "full_name": "ben/demo", "owner_id": user["id"],
-    })
+    # Each repo carries its own webhook secret; sign with that one.
+    repo_secret = "repo-scoped-secret"
+    make_repo(auth_client.user.id, "ben/demo", 42, secret=repo_secret)
 
     payload = {
         "action": "opened",
@@ -184,11 +181,9 @@ def test_webhook_enqueues_and_worker_processes(client, fake_redis, monkeypatch):
 
     # Sign the exact bytes we send, the way GitHub does.
     raw = json.dumps(payload).encode()
-    digest = hmac.new(
-        settings.github_webhook_secret.encode(), raw, hashlib.sha256
-    ).hexdigest()
+    digest = hmac.new(repo_secret.encode(), raw, hashlib.sha256).hexdigest()
 
-    r = client.post(
+    r = auth_client.post(
         "/api/webhooks/github",
         headers={
             "X-GitHub-Event": "pull_request",
@@ -208,5 +203,5 @@ def test_webhook_enqueues_and_worker_processes(client, fake_redis, monkeypatch):
     worker.work(burst=True)
 
     review_id = body["review_id"]
-    detail = client.get(f"/api/reviews/{review_id}").json()
+    detail = auth_client.get(f"/api/reviews/{review_id}").json()
     assert detail["status"] == "completed"
