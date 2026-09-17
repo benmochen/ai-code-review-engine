@@ -1,0 +1,2 @@
+search-path = ["."]
+infer-with-first-use = false
