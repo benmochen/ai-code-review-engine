@@ -15,7 +15,7 @@ class Settings(BaseSettings):
     github_webhook_secret: str = Field(min_length=1)
     redis_url: str = "redis://localhost:6379/0"
     anthropic_api_key: str = ""
-    claude_model: str = "claude-sonnet-5"
+    claude_model: str = "claude-3-5-sonnet-20241022"
     session_secret: str = Field(min_length=1)
     # Public origin GitHub delivers webhooks to (an ngrok URL in dev). Without
     # it a repo cannot be enabled, since GitHub needs a reachable callback.

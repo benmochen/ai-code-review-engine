@@ -64,6 +64,85 @@ def _extract_json(text: str) -> dict:
         raise
 
 
+MAX_DIFF_CHARS = 100_000
+
+NOISE_EXTENSIONS = (
+    ".min.js",
+    ".min.css",
+    ".map",
+    ".svg",
+    ".png",
+    ".jpg",
+    ".jpeg",
+    ".gif",
+    ".ico",
+    ".woff",
+    ".woff2",
+    ".ttf",
+    ".eot",
+)
+
+NOISE_FILENAMES = (
+    "package-lock.json",
+    "pnpm-lock.yaml",
+    "yarn.lock",
+    "poetry.lock",
+    "pipfile.lock",
+    "cargo.lock",
+    "composer.lock",
+    "go.sum",
+)
+
+
+def is_noise_file(file_path: str) -> bool:
+    name = file_path.lower().strip()
+    base = name.split("/")[-1]
+    if base in NOISE_FILENAMES:
+        return True
+    if any(name.endswith(ext) for ext in NOISE_EXTENSIONS):
+        return True
+    return False
+
+
+def preprocess_diff(diff_text: str, max_chars: int = MAX_DIFF_CHARS) -> tuple[str, bool]:
+    """
+    Clean diff by omitting lockfiles and binary assets, then truncating to max_chars.
+    Returns (cleaned_diff, was_truncated).
+    """
+    if not diff_text or not diff_text.strip():
+        return ("", False)
+
+    chunks = re.split(r"(?=^diff --git )", diff_text, flags=re.MULTILINE)
+    cleaned_chunks = []
+    skipped_files = []
+
+    for chunk in chunks:
+        if not chunk.strip():
+            continue
+        match = re.search(r"^diff --git a/(\S+) b/(\S+)", chunk, re.MULTILINE)
+        if match:
+            path = match.group(2)
+            if is_noise_file(path):
+                skipped_files.append(path)
+                continue
+        cleaned_chunks.append(chunk)
+
+    filtered_diff = "".join(cleaned_chunks)
+    if skipped_files:
+        filtered_diff = f"# Omitted lock/generated files: {', '.join(skipped_files[:10])}\n\n" + filtered_diff
+
+    was_truncated = False
+    if len(filtered_diff) > max_chars:
+        filtered_diff = filtered_diff[:max_chars]
+        last_nl = filtered_diff.rfind("\n")
+        if last_nl > max_chars * 0.8:
+            filtered_diff = filtered_diff[:last_nl]
+        filtered_diff += f"\n\n# [Diff truncated: exceeded review safety limit of {max_chars // 1000}KB]"
+        was_truncated = True
+
+    return (filtered_diff, was_truncated)
+
+
 def review_diff(diff_text: str, client: Anthropic | None = None) -> list[dict]:
     """
     Send a diff to Claude and return a list of finding dicts.
@@ -71,7 +150,8 @@ def review_diff(diff_text: str, client: Anthropic | None = None) -> list[dict]:
     Each finding: {file_path, line_number, severity, body}
     Returns [] if there are no issues.
     """
-    if not diff_text.strip():
+    cleaned_diff, _ = preprocess_diff(diff_text)
+    if not cleaned_diff.strip():
         return []
 
     client = client or Anthropic(api_key=settings.anthropic_api_key)
