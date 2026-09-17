@@ -21,7 +21,11 @@ def login(request: Request):
     state = secrets.token_urlsafe(32)
     request.session["oauth_state"] = state
 
-    redirect_uri = str(request.url_for("oauth_callback"))
+    if settings.public_base_url:
+        redirect_uri = f"{settings.public_base_url.rstrip('/')}/api/auth/callback"
+    else:
+        redirect_uri = str(request.url_for("oauth_callback"))
+
     url = GitHubClient.authorize_url(
         client_id=settings.github_client_id,
         redirect_uri=redirect_uri,

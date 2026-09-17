@@ -77,7 +77,11 @@ class GitHubClient:
             resp = await client.get(
                 f"{GITHUB_API}/user/repos",
                 headers=self._headers(),
-                params={"per_page": per_page, "sort": "updated", "affiliation": "owner"},
+                params={
+                    "per_page": per_page,
+                    "sort": "updated",
+                    "affiliation": "owner,collaborator,organization_member",
+                },
             )
             resp.raise_for_status()
             return [r for r in resp.json() if r.get("permissions", {}).get("admin")]
