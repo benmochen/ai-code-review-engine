@@ -4,7 +4,7 @@ __pycache__/
 .git/
 .gitignore
 tests/
-frontend/
+frontend/node_modules/
 *.md
 .env
 *.db

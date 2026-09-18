@@ -22,7 +22,7 @@ GitHub PR → Webhook → FastAPI → Redis Queue → Worker → Claude API → 
 - Python 3.11+
 - PostgreSQL (or Docker)
 
-### Setup
+### Setup (Local Development)
 
 ```bash
 # Clone and enter project
@@ -46,9 +46,31 @@ createdb code_review_bot
 # Run the server
 uvicorn app.main:app --reload
 
-# Visit the auto-generated API docs
-# http://localhost:8000/docs
+# In another terminal, run worker
+python -m app.workers.worker
+
+# Visit the dashboard at http://localhost:8000
+# Auto-generated API docs at http://localhost:8000/docs
 ```
+
+### Deploying with Docker Compose
+
+Deploy the entire stack (FastAPI web server, rq worker, PostgreSQL, Redis, and React frontend) with a single command:
+
+```bash
+# 1. Prepare environment variables
+cp .env.example .env
+# Edit .env and fill in GITHUB_CLIENT_ID, GITHUB_CLIENT_SECRET,
+# ANTHROPIC_API_KEY, SESSION_SECRET, and PUBLIC_BASE_URL.
+
+# 2. Build and start services
+docker compose up -d
+
+# 3. View logs
+docker compose logs -f
+```
+
+Visit `http://localhost:8000` (or your configured `PUBLIC_BASE_URL`) to access the dashboard.
 
 ### Run Tests
 
