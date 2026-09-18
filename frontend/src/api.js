@@ -35,4 +35,5 @@ export const api = {
   reviews: (repoId) => get(`/reviews/${repoId ? `?repo_id=${repoId}` : ""}`),
   review: (id) => get(`/reviews/${id}`),
   loginUrl: "/api/auth/login",
+  logout: () => request("POST", "/auth/logout"),
 };

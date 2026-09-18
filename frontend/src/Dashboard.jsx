@@ -44,6 +44,13 @@ export default function Dashboard() {
     api.me().then(setMe).catch(() => setMe(null));
   }, []);
 
+  const handleLogout = useCallback(async () => {
+    try {
+      await api.logout();
+    } catch { /* ignore */ }
+    setMe(null);
+  }, []);
+
   const load = useCallback(async () => {
     setLoading(true);
     setError(null);
@@ -138,9 +145,27 @@ export default function Dashboard() {
             <h1 style={S.brand}>codereview<span style={{opacity:.4}}>.bot</span></h1>
             <span style={{flex:1}} />
             <span style={S.user}>@{me.username}</span>
+            <button onClick={handleLogout} style={S.logoutBtn} title="Sign out">Sign out</button>
           </div>
           <p style={S.tag}>Automated pull-request review, one queue at a time.</p>
         </header>
+
+        {repos.length === 0 && !loading && (
+          <div style={S.onboardingCard}>
+            <div style={S.onboardingTitle}>Welcome to CodeReviewBot! 👋</div>
+            <p style={S.onboardingSub}>
+              Automated AI code reviews for your pull requests. Get started in 3 quick steps:
+            </p>
+            <ol style={S.onboardingList}>
+              <li><strong>Connect a repository:</strong> Click <em>+ Connect a repo</em> below to select any personal or organization repo you administer.</li>
+              <li><strong>Open or update a PR:</strong> Create or push new commits to a pull request on GitHub.</li>
+              <li><strong>Automated review:</strong> The bot analyzes the changes with Claude and posts actionable findings directly on your PR!</li>
+            </ol>
+            <button onClick={() => { setShowConnect(true); if (available === null) openConnect(); }} style={S.onboardingBtn}>
+              + Connect Your First Repo
+            </button>
+          </div>
+        )}
 
         <StatBand reviews={reviews} detail={detail} />
 
@@ -248,7 +273,16 @@ function ConnectPanel({ available, error, busyRepo, onToggle }) {
           Enabling adds a webhook so new pull requests get reviewed.
         </span>
       </div>
-      {error && <div style={S.connectErr}>{error}</div>}
+      {error && (
+        <div style={S.connectErr}>
+          <div>{error}</div>
+          {error.includes("PUBLIC_BASE_URL") && (
+            <div style={{marginTop: 6, fontSize: 12, opacity: 0.9}}>
+              Tip: Set <code>PUBLIC_BASE_URL</code> in your deployment environment (e.g. <code>https://your-domain.com</code> or ngrok tunnel) so GitHub can reach your webhook endpoint.
+            </div>
+          )}
+        </div>
+      )}
       {available === null && <div style={S.noFindings}><Spinner /> Loading from GitHub…</div>}
       {available !== null && available.length === 0 && !error && (
         <div style={S.noFindings}>No repositories you can administer.</div>
@@ -402,6 +436,13 @@ const S = {
   privateTag: { fontSize: 10, textTransform: "uppercase", letterSpacing: "0.05em", color: "#8a8578", border: "1px solid #e2ddd0", borderRadius: 4, padding: "1px 5px", marginLeft: 8 },
   connectBtn: { border: "1px solid #2b2822", background: "#2b2822", color: "#f7f5ef", padding: "5px 13px", borderRadius: 8, fontSize: 12.5, fontWeight: 600, flexShrink: 0 },
   connectBtnOn: { background: "#fff", color: "#7c1d1d", borderColor: "#e0c4c4" },
+
+  logoutBtn: { border: "1px solid #e2ddd0", background: "#fff", color: "#7c776b", padding: "4px 10px", borderRadius: 6, fontSize: 12, marginLeft: 8, cursor: "pointer" },
+  onboardingCard: { background: "#fff", border: "1px solid #e7e2d6", borderRadius: 14, padding: "22px 24px", marginBottom: 20 },
+  onboardingTitle: { fontSize: 18, fontWeight: 700, color: "#2b2822", marginBottom: 6 },
+  onboardingSub: { fontSize: 14, color: "#7c776b", margin: "0 0 14px" },
+  onboardingList: { margin: "0 0 18px", paddingLeft: 20, fontSize: 13.5, lineHeight: 1.7, color: "#413d34" },
+  onboardingBtn: { border: "1px solid #2b2822", background: "#2b2822", color: "#f7f5ef", padding: "8px 16px", borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: "pointer" },
 
   loginBtn: { display:"inline-block", background:"#2b2822", color:"#f7f5ef", padding:"11px 22px", borderRadius:10, fontSize:14, fontWeight:600 },
   spinner: { width:13, height:13, border:"2px solid #d8d1c0", borderTopColor:"#c0392b", borderRadius:"50%", display:"inline-block", animation:"spin .7s linear infinite" },
